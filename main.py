@@ -1,164 +1,161 @@
 import numpy as np
 import pandas as pd
+pd.options.mode.chained_assignment = None  # default='warn'
+import pickle
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import MinMaxScaler,StandardScaler
+import matplotlib.pyplot as plt
 import seaborn as sns
-import pickle
+from sklearn.cluster import DBSCAN
+from sklearn.neighbors import NearestNeighbors
+from sklearn.metrics.pairwise import cosine_similarity
+from tqdm import tqdm
 
-df = pd.read_csv('football_data.csv', encoding='ISO-8859-1')
-df = df.drop(['ï»¿', 'ID', 'Photo', 'Flag', 'Club', 'Club Logo', 
-       'Special', 'Weak Foot', 'Body Type', 'Real Face',
-       'Jersey Number', 'Joined', 'Loaned From', 'Contract Valid Until',
-       'LS', 'ST', 'RS', 'LW', 'LF', 'CF', 'RF', 'RW',
-       'LAM', 'CAM', 'RAM', 'LM', 'LCM', 'CM', 'RCM', 'RM', 'LWB', 'LDM',
-       'CDM', 'RDM', 'RWB', 'LB', 'LCB', 'CB', 'RCB', 'RB', 'Release Clause'], axis=1)
+labeled_samples_with_pca = pd.read_csv('processed_data.csv')
 
-df = df.dropna()
-df = df.reset_index()
+with open('columns.pickle', 'rb') as f:
+    label_columns,numerical_columns,categorical_columns,PCA_columns = pickle.load(f)
 
-val = []
-val2 = []
-wra = []
-wrd = []
-wt = []
-ht=[]
+labels = labeled_samples_with_pca[label_columns]
+samples = labeled_samples_with_pca[numerical_columns]
 
-Foot = [1 for i in range(len(df['Name']))]
+clusters_kmeans = pd.read_csv('Question_2/k_means.csv')['0']
+clusters_agg = pd.read_csv('Question_3/agglomerative_clustering.csv')['0']
+clusters_divisive = pd.read_csv('Question_3/divisive_clustering.csv')['0']
+clusters_dbscan = pd.read_csv('Question_4/dbscan.csv')['0']
 
-for i in range(len(df['Name'])):
-    if df['Preferred Foot'][i] == 'Right':
-        Foot[i]=0
+all_models = [clusters_kmeans,clusters_agg,clusters_divisive,clusters_dbscan]
+model_titles = ['K-Means','Agglomerative hierarchical Clustering','Divisive Clustering','DBSCAN']
 
-df['Foot'] = Foot
-
-Pos = [-1 for i in range(len(df['Name']))]
-
-for i in range(len(df['Name'])):
-    if df['Position'][i] == 'LS' or df['Position'][i] == 'RS' or df['Position'][i] == 'ST' or df['Position'][i] == 'CF':
-        Pos[i]=7
-for i in range(len(df['Name'])):
-    if df['Position'][i] == 'LW' or df['Position'][i] == 'RW' or df['Position'][i] == 'LF' or df['Position'][i] == 'RF' or df['Position'][i] == 'LM' or df['Position'][i] == 'RM':
-        Pos[i]=6
-for i in range(len(df['Name'])):
-    if df['Position'][i] == 'RAM' or df['Position'][i] == 'LAM' or df['Position'][i] == 'CAM':
-        Pos[i]=5
-for i in range(len(df['Name'])):
-    if df['Position'][i] == 'CM' or df['Position'][i] == 'LCM' or df['Position'][i] == 'RCM':
-        Pos[i]=4
-for i in range(len(df['Name'])):
-    if df['Position'][i] == 'RDM' or df['Position'][i] == 'LDM' or df['Position'][i] == 'CDM':            
-        Pos[i]=3
-for i in range(len(df['Name'])):        
-    if df['Position'][i]=='LWB' or df['Position'][i]=='LB' or df['Position'][i]=='RB' or df['Position'][i]=='RWB':
-        Pos[i]=2
-for i in range(len(df['Name'])):
-    if df['Position'][i]=='RCB' or df['Position'][i]=='LCB' or df['Position'][i]=='CB':
-        Pos[i]=1
-for i in range(len(Pos)):
-    if Pos[i]==-1:
-        Pos[i]=0
+plt.figure(figsize=(15,10))
+for i,model in enumerate(all_models):
+    ax = plt.subplot(2,2,i+1)
+    x = labeled_samples_with_pca[PCA_columns[0]]
+    y = labeled_samples_with_pca[PCA_columns[1]]
+    ax.scatter(x, y,c=list(model), cmap='rainbow',alpha=0.2)
+    ax.set_title(model_titles[i])
+    ax.set(xlabel='PCA_1', ylabel='PCA_2')
+plt.show()
 
 
-df['Position']=Pos
+def cos_similarity(a,b):
+#     a = np.array(a)
+#     b = np.array(b)
+    return np.dot(a, b)/(np.linalg.norm(a)*np.linalg.norm(b))
+def euclidean(a,b):
+    return np.sqrt(np.sum((a-b)**2))
 
 
+np_samples = np.array(samples)
+similarity_matrix = cosine_similarity(np_samples)
 
-for v in df['Value']:
-    v = v.lstrip('â\x82¬')
-    if v[-1] != 'K':
-        v=float(v.rstrip('M'))*1000000
-    else:
-        v=float(v.rstrip('K'))*1000
-    val.append(v)
+total = np_samples.shape[0]
+inter_class_similarities = []
+total = 2000
+for model_i, model in enumerate(all_models):
+    inter = []
+    for i in tqdm(range(total)):
+        for j in range(i):
+            if model[i]==model[j]:
+                inter.append(similarity_matrix[i][j])
+    inter_class_similarities.append(np.mean(inter))
+inter_class_similarities
 
-df['Value'] = val
+
+fig = plt.figure(figsize = (10, 5)) 
+plt.bar(model_titles, inter_class_similarities, color ='maroon',  
+        width = 0.4) 
+plt.title("Inter Class Similarity (More better)")
+plt.show()
+
+
+intra_class_similarity = []
+for model_i, model in enumerate(all_models):
+    clusters = set([i for i in model if i!=-1])
+    intra = []
+    for cluster1 in clusters:
+        for cluster2 in clusters:
+            if cluster1 != cluster2:
+                mean1 = np.mean(samples[(model==cluster1)],axis=0)
+                mean2 = np.mean(samples[(model==cluster2)],axis=0)
+                intra.append(cos_similarity(mean1,mean2))
+    intra_class_similarity.append(np.mean(intra))
+print("intra_class_similarity = ", str(intra_class_similarity))
+
+fig = plt.figure(figsize = (10,5)) 
+plt.bar(model_titles, intra_class_similarity, color ='maroon',  
+        width = 0.4) 
+plt.title("Intra Class Similarity (lesser better)")
+plt.show()
+
+for model_i, model in enumerate(all_models):
+    labels = list(samples.columns)
+    x = np.arange(len(labels))
+    width = 0.35
+    fig, ax = plt.subplots(figsize=(20,6))
+    clusters = set([i for i in model if i!=-1])
+    for i,cluster1 in enumerate(clusters):
+        mean = np.mean(samples[(model == cluster1)])
+        ax.bar(x+[-width,0,width][i], list(mean), color = 'rbg'[i],align='center', width = width, label=cluster1)
+    clusters = list([str(c) for c in clusters])
+    ax.set_ylabel('Value')
+    ax.set_title(model_titles[model_i])
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels,rotation='vertical')
+    plt.legend()
+    plt.show()
+
+# Variance Distribution within clusters
+for model_i, model in enumerate(all_models):
+    print("For {}:".format(model_titles[model_i]))
+    clusters = set([i for i in model if i!=-1])
+    print('Number of clusters: ', len(clusters))
+    for cluster1 in clusters:
+        print()
+        print('For Cluster {}:'.format(cluster1))
+        clust = samples[(model == cluster1)]
+        variances =  np.var(clust)
+        total_var = np.sum(variances)
+        variances = variances/total_var
+        variances = dict(variances)
+        variances = [k for k, v in sorted(variances.items(), key=lambda item: item[1])]
+#         print(variances)
+        print('Similar Attr: ',variances[:5])
+        print('Varied Attr: ',variances[-5:])
+    print('--------------------------------------------------------')
+
+
+for model_i, model in enumerate(all_models):
+    print("For {}:".format(model_titles[model_i]))
+    clusters = set([i for i in model if i!=-1])
+    print('Number of clusters: ', len(clusters))
+    for cluster1 in clusters:
+        print('Players Included in {}: '.format(cluster1), end='')
+        clust = labeled_samples_with_pca[(model == cluster1)]
+        print(list(clust.Name[:5]))
+    print('----------------------')
+
         
+plt.figure(figsize=(15,10))
+for model_i, model in enumerate(all_models):
+    ax = plt.subplot(2,2,model_i+1)
+    clusters = set([i for i in model if i!=-1])
+    length = []
+    for cluster1 in clusters:
+        length.append(labeled_samples_with_pca[(model == cluster1)].shape[0])
+    clusters = list([str(c) for c in clusters])
+    ax.bar(clusters, length, color ='maroon',  
+        width = 0.4) 
+    ax.set_title(model_titles[model_i])
+    ax.set(xlabel='Clusters', ylabel='Count')
+plt.show()
 
-for w in df['Wage']:
-    w = w.lstrip('â\x82¬').rstrip('K')
-    w=float(w)*1000
-    val2.append(w)
+# outliers in DBSCAN
 
-df['Wage'] = val
-
-for r in df['Work Rate']:
-    sp = r.split('/ ')
-    tp = 0
-    if sp[0]=='High':
-        tp = 2
-        # wra.append(2)
-    elif sp[0]=='Medium':
-        tp = 1
-        # wra.append(1)
-    wra.append(tp)
-
-df['Att Work Rate']=wra
-
-for r in df['Work Rate']:
-    sp = r.split('/ ')
-    tp = 0
-    if sp[1]=='High':
-        tp = 2
-        # wrd.append(2)
-    elif sp[1]=='Medium':
-        tp = 1
-        # wrd.append(1)
-    wrd.append(tp)
-
-
-df['Def Work Rate']=wrd       
-
-for w in df['Weight']:
-    w = float(w.rstrip('lbs'))
-    wt.append(w)
-
-for h in df['Height']:
-    h = int(h[:1])*12+int(h[2:])
-    ht.append(h)
-
-df['Weight']=wt
-df['Height']=ht
-
-df = df.drop(['Preferred Foot', 'Work Rate'], axis=1)    
-# df.head()
-print(df.head())
-
-label_columns = ['index','Name','Nationality']
-categorical_columns = ['Position','Foot','Att Work Rate','Def Work Rate']
-labels = df[label_columns]
-categorical = df[categorical_columns]
-numerical = df.drop(label_columns,axis=1)
-numerical = numerical.drop(categorical_columns,axis=1)
-numerical_columns = list(numerical.columns)
-
-
-scaler = StandardScaler()
-# scaler = MinMaxScaler()
-numerical = pd.DataFrame(scaler.fit_transform(numerical))
-numerical.columns = numerical_columns
-# print(numerical.head())
-
-
-samples = pd.concat([numerical, categorical], axis=1, join='inner')
-labeled_samples = pd.concat([labels, samples], axis=1, join='inner')
-
-pca_decomposer = PCA(n_components=2)
-PCs_2d = pd.DataFrame(pca_decomposer.fit_transform(samples))
-PCA_columns = ["PC1",'PC2']
-PCs_2d.columns = PCA_columns
-labeled_samples_with_pca = pd.concat([labeled_samples,PCs_2d], axis=1, join='inner')
-labeled_samples_with_pca.head()
-
-labeled_samples_with_pca.describe()
-
-
-labeled_samples_with_pca.to_csv('processed_data.csv')
-with open('columns.pickle', 'wb') as f:
-    pickle.dump((label_columns,numerical_columns,categorical_columns,PCA_columns), f)
-
-
-
+for i in range(len(clusters_dbscan)):
+    if clusters_dbscan[i]==-1:
+        print(labeled_samples_with_pca['Name'][i])
 
 
 
