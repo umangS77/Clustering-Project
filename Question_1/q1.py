@@ -17,7 +17,7 @@ def check_list_error(lst):
 
 PCA_samples = pd.read_csv('../processed_data.csv')
 
-temp_samp = PCA_samples[]
+temp_samp = PCA_samples[num_cols+cat_cols]
 
 
 def plot_graph_1():

@@ -20,12 +20,14 @@ with open('../columns.pickle', 'rb') as inpfile:
 
 
 def plot_graph_1(k, scores):
+    print("plotting Silhoutte score")
     plt.plot(k, scores) 
     plt.xlabel('k') 
     plt.ylabel('Silhoutte score') 
     plt.show()
 
 def plot_error_graph(final_error):
+    print("plotting Total Error")
     plt.plot(range(1,11), final_error)
     plt.xlabel('K')
     plt.ylabel('Total Error')
@@ -52,7 +54,7 @@ def extract_clusters(kmean, k):
     while(error_past-error_present>=1e-7):
         if f == 0:
             f = 1
-        else
+        else:
             multi_meds = []
             j=0;
             while j < k:
@@ -84,6 +86,7 @@ def extract_clusters(kmean, k):
 
 
 def main():
+    print("Writing cluster data......")
     clusterfile = open("Cluster_data.txt", "w")
     for k in [3, 5, 7]:
         clusterfile.write("\n")
@@ -105,6 +108,7 @@ def main():
 
 
     clusterfile.close()
+    print("Cluster output written in file: Cluster_data.txt")
     k=[]
     scores=[]
     final_clstr=[]
@@ -127,3 +131,5 @@ def main():
 
     csvout = pd.DataFrame(final_clstr[1])
     csvout.to_csv('k_means.csv',index=False)
+
+main()
