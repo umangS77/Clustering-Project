@@ -1,54 +1,83 @@
 import numpy as np
 import pandas as pd
-pd.options.mode.chained_assignment = None
-import pickle
 import matplotlib.pyplot as plt
+import pickle
+import seaborn as sns
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import MinMaxScaler,StandardScaler
-import seaborn as sns
 from sklearn.cluster import DBSCAN
 from sklearn.neighbors import NearestNeighbors
 
-labeled_samples_with_pca = pd.read_csv('../processed_data.csv')
-
-with open('../columns.pickle', 'rb') as f:
-    label_columns,numerical_columns,categorical_columns,PCA_columns = pickle.load(f)
 
 
-labels = labeled_samples_with_pca[label_columns]
-samples = labeled_samples_with_pca[numerical_columns]
+with open('../columns.pickle', 'rb') as input_file:
+    lab_cols,num_cols,cat_cols,pca_cols = pickle.load(input_file)
 
-db = DBSCAN(eps=10, min_samples=5)
-db_clusters = db.fit_predict(samples[:100])
+pd.options.mode.chained_assignment = None
 
-df = labeled_samples_with_pca[:100] 
-df['cluster'] = db_clusters
+PCA_samples = pd.read_csv('../processed_data.csv')
 
-print(df[df.cluster==1])
+samples = PCA_samples[num_cols]
 
-plt.figure(figsize=(20,20))
-for i in range(1,11):
-    plt.subplot(5,2,i)
-    neighbours = 2*i
-    print(neighbours)
+labels = PCA_samples[lab_cols]
+
+def plot_graph():
+    plt.figure(figsize=(25,25))
+    for i in range(1,11):
+        l = 5
+        w = 2
+        plt.subplot(l,w,i)
+        nebr = i+i
+        # print(nebr)
+        nn = NearestNeighbors(n_neighbors = nebr)
+        nbrs = nn.fit(samples)
+        print('Plotting for k = ', str(nebr))
+        dist, j = nbrs.kneighbors(samples)
+        temp = np.sort(dist, axis=0)
+        # dist = temp[:,1]
+        lab = 'for k = ' + str(nebr)
+        plt.ylabel(lab)
+        plt.plot(temp[:,1])
+
+    plt.show()
+
+def main():
+
+    db = DBSCAN(eps=10, min_samples=5)
+    db_cls = db.fit_predict(samples[:100])
+
     
-    nn = NearestNeighbors(n_neighbors = neighbours)
-    nbrs = nn.fit(samples)
-    distances, indices = nbrs.kneighbors(samples)
-    distances = np.sort(distances, axis=0)
-    distances = distances[:,1]
-    plt.plot(distances)
 
-plt.show()
+    plot_graph()
+    df = PCA_samples[:100] 
+    df['cluster'] = db_cls
 
-db = DBSCAN(eps=4, min_samples=6)
-db_clusters = db.fit_predict(samples)
+    
+    print(df[df.cluster==1])
 
-db_clusters = list(db_clusters)
-for i in range(len(db_clusters)):
-    if db_clusters[i]==-1:
-        print(labeled_samples_with_pca['Name'][i])
+    db = DBSCAN(eps=4, min_samples=6)
+    db_cls = db.fit_predict(samples)
 
-set(list(db_clusters))
-ff = pd.DataFrame(db_clusters)
-ff.to_csv('dbscan.csv',index=False)
+    db_cls = list(db_cls)
+    val = -1
+    print("----------------------------------")
+    l = len(db_cls)
+
+    tempfile = open('Outfile.txt', 'w')
+    print(l)
+    for i in range(len(db_cls)):
+        if db_cls[i]!=val:
+            val = -1
+        else:
+            pp = str(i) + "  =  " + PCA_samples['Name'][i] + "\n"
+            tempfile.write(pp)
+    tempfile.close()
+    print("----------------------------------")
+
+
+    set(list(db_cls))
+    print("Exporting DBSCAN data")
+    outfile = pd.DataFrame(db_cls)
+    outfile.to_csv('dbscan.csv',index=False)
+
+main()
